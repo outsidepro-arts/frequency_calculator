@@ -1,6 +1,6 @@
 # Frequency calculator
 
-This little utility written for radio amateurs . It helps you to know a frequency of specified band and channel and back versa.
+This little utility is written for radio amateurs. It helps you to know a frequency of specified band and channel and vice versa.
 
 ## Supported bands
 Frequency calculator supports the following bands:
@@ -12,4 +12,5 @@ Frequency calculator supports the following bands:
 You can pull-request new bands support.
 
 ## A few final words
-This utility is just my exam for Python learning. So, Python welcome!
+
+This utility is just my exam in Python learning. So, Python welcome!
