@@ -4,6 +4,8 @@ import re
 
 import wx
 
+import freqlists
+
 FrequencyObject = namedtuple("FrequencyObject", ["name", "frequency", "frequencyRaw"])
 
 
@@ -55,6 +57,27 @@ class Band:
         raise StopIteration
 
 
+class StaticBand(Band):
+    def __init__(
+        self, bandName: tuple[str, str], freqFormat: str, frequencies: list[float]
+    ):
+        if len(frequencies) < 1:
+            raise ValueError("Frequencies list must not be empty")
+        self.name, self.tip = bandName
+        self.startRange = frequencies[0]
+        self.channelsAmount = len(frequencies)
+        self.freqFormat = freqFormat
+        self.frequencies = frequencies
+
+    def __getitem__(self, channel: int) -> FrequencyObject:
+        result = self.frequencies[channel]
+        return FrequencyObject(
+            name=f"{self.name} {channel + 1}",
+            frequency=self.freqFormat % result,
+            frequencyRaw=result,
+        )
+
+
 bandsList = [
     Band(
         bandName=("LPD", "Low Power Device"),
@@ -77,6 +100,11 @@ bandsList = [
         channelsAmount=22,
         freqFormat="%.4f",
         bandDivider=15,
+    ),
+    StaticBand(
+        bandName=("CB eu a", "CB European standard A"),
+        freqFormat="%.3f",
+        frequencies=freqlists.CB_EU_A,
     ),
 ]
 
@@ -242,31 +270,54 @@ class FreqToChanTab(wx.Panel):
         if re.search(r"\D", freqProvided):
             freqProvided = re.sub(r"^(\d+)\D|\W|\s(\d+)", r"\1.\2", freqProvided)
         try:
-            freqProvided = decimal.Decimal(freqProvided)
-        except decimal.InvalidOperation:
+            # We have to use this intermediate float conversion to avoid mistakes in Decimal with float comparison later
+            freqProvided = decimal.Decimal(float(freqProvided))
+        except (decimal.InvalidOperation, ValueError):
             self.resultField.ChangeValue("Введите число")
             return True
         for band in bandsList:
-            if (
-                (band.startRange - band.freqStep)
-                <= freqProvided
-                <= band[len(band) + 1].frequencyRaw
-            ):
-                preChannel = (
-                    (freqProvided - decimal.Decimal(band.startRange))
-                    / decimal.Decimal(band.freqStep)
-                ) + 1
-                if round(preChannel) < 1:
-                    preChannel = 0.9
-                elif round(preChannel) > len(band):
-                    preChannel = len(band) + 0.1
-                if int(preChannel) == preChannel:
-                    self.resultField.ChangeValue(band[round(preChannel) - 1].name)
-                else:
-                    self.resultField.ChangeValue(
-                        f"Ближе к {band[round(preChannel) - 1].name}, частота которого {band[round(preChannel) - 1].frequency} МГц"
-                    )
+            if isinstance(band, StaticBand):
+                lastChannel: FrequencyObject | None = None
+                prevDifference: decimal.Decimal | None = None
+                for channel in band:
+                    if freqProvided == channel.frequencyRaw:
+                        self.resultField.ChangeValue(channel.name)
+                        return True
+                    else:
+                        currentDifference = abs(
+                            freqProvided - decimal.Decimal(channel.frequencyRaw)
+                        )
+                        if (
+                            prevDifference is None
+                            or currentDifference <= prevDifference
+                        ):
+                            prevDifference = currentDifference
+                            lastChannel = channel
+                self.resultField.ChangeValue(
+                    f"Ближе к {lastChannel.name}, частота которого {lastChannel.frequency}"
+                )
                 return True
+            else:
+                if (
+                    (band.startRange - band.freqStep)
+                    <= freqProvided
+                    <= band[len(band) + 1].frequencyRaw
+                ):
+                    preChannel = (
+                        (freqProvided - decimal.Decimal(band.startRange))
+                        / decimal.Decimal(band.freqStep)
+                    ) + 1
+                    if round(preChannel) < 1:
+                        preChannel = 0.9
+                    elif round(preChannel) > len(band):
+                        preChannel = len(band) + 0.1
+                    if int(preChannel) == preChannel:
+                        self.resultField.ChangeValue(band[round(preChannel) - 1].name)
+                    else:
+                        self.resultField.ChangeValue(
+                            f"Ближе к {band[round(preChannel) - 1].name}, частота которого {band[round(preChannel) - 1].frequency} МГц"
+                        )
+                    return True
         self.resultField.ChangeValue("Ни в одном известном диапазоне")
         return True
 
