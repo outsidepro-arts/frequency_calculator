@@ -64,7 +64,8 @@ class StaticBand(Band):
 		if len(frequencies) < 1:
 			raise ValueError("Frequencies list must not be empty")
 		self.name, self.tip = bandName
-		self.startRange = frequencies[0]
+		self.startRange = min(frequencies)
+		self.endRange = max(frequencies)
 		self.channelsAmount = len(frequencies)
 		self.freqFormat = freqFormat
 		self.frequencies = frequencies
@@ -264,6 +265,52 @@ class FreqToChanTab(wx.Panel):
 		)
 		resultSizer.Add(self.resultField, wx.EXPAND)
 
+	def process_static_band(
+		self, band: StaticBand, freqProvided: decimal.Decimal
+	) -> bool:
+		if not (band.startRange <= freqProvided <= band.endRange):
+			return False
+		lastChannel: FrequencyObject | None = None
+		prevDifference: decimal.Decimal | None = None
+		for channel in band:
+			if freqProvided == channel.frequencyRaw:
+				self.resultField.ChangeValue(channel.name)
+				return True
+			else:
+				currentDifference = abs(
+					freqProvided - decimal.Decimal(channel.frequencyRaw)
+				)
+				if prevDifference is None or currentDifference <= prevDifference:
+					prevDifference = currentDifference
+					lastChannel = channel
+		self.resultField.ChangeValue(
+			f"Ближе к {lastChannel.name}, частота которого {lastChannel.frequency} МГц"
+		)
+		return True
+
+	def process_normal_band(self, band: Band, freqProvided: decimal.Decimal) -> bool:
+		if (
+			(band.startRange - band.freqStep)
+			<= freqProvided
+			<= band[len(band) + 1].frequencyRaw
+		):
+			preChannel = (
+				(freqProvided - decimal.Decimal(band.startRange))
+				/ decimal.Decimal(band.freqStep)
+			) + 1
+			if round(preChannel) < 1:
+				preChannel = 0.9
+			elif round(preChannel) > len(band):
+				preChannel = len(band) + 0.1
+			if int(preChannel) == preChannel:
+				self.resultField.ChangeValue(band[round(preChannel) - 1].name)
+			else:
+				self.resultField.ChangeValue(
+					f"Ближе к {band[round(preChannel) - 1].name}, частота которого {band[round(preChannel) - 1].frequency} МГц"
+				)
+			return True
+		return False
+
 	def onFrequencyProvided(self, event):
 		freqProvided = event.GetEventObject().GetValue()
 		decimal.getcontext().prec = 6
@@ -275,50 +322,16 @@ class FreqToChanTab(wx.Panel):
 		except (decimal.InvalidOperation, ValueError):
 			self.resultField.ChangeValue("Введите число")
 			return True
+		result = False
 		for band in bandsList:
-			if isinstance(band, StaticBand):
-				lastChannel: FrequencyObject | None = None
-				prevDifference: decimal.Decimal | None = None
-				for channel in band:
-					if freqProvided == channel.frequencyRaw:
-						self.resultField.ChangeValue(channel.name)
-						return True
-					else:
-						currentDifference = abs(
-							freqProvided - decimal.Decimal(channel.frequencyRaw)
-						)
-						if (
-							prevDifference is None
-							or currentDifference <= prevDifference
-						):
-							prevDifference = currentDifference
-							lastChannel = channel
-				self.resultField.ChangeValue(
-					f"Ближе к {lastChannel.name}, частота которого {lastChannel.frequency} МГц"
-				)
-				return True
+			if not isinstance(band, StaticBand):
+				result = self.process_normal_band(band, freqProvided)
 			else:
-				if (
-					(band.startRange - band.freqStep)
-					<= freqProvided
-					<= band[len(band) + 1].frequencyRaw
-				):
-					preChannel = (
-						(freqProvided - decimal.Decimal(band.startRange))
-						/ decimal.Decimal(band.freqStep)
-					) + 1
-					if round(preChannel) < 1:
-						preChannel = 0.9
-					elif round(preChannel) > len(band):
-						preChannel = len(band) + 0.1
-					if int(preChannel) == preChannel:
-						self.resultField.ChangeValue(band[round(preChannel) - 1].name)
-					else:
-						self.resultField.ChangeValue(
-							f"Ближе к {band[round(preChannel) - 1].name}, частота которого {band[round(preChannel) - 1].frequency} МГц"
-						)
-					return True
-		self.resultField.ChangeValue("Ни в одном известном диапазоне")
+				result = self.process_static_band(band, freqProvided)
+			if result:
+				break
+		if not result:
+			self.resultField.ChangeValue("Ни в одном известном диапазоне")
 		return True
 
 

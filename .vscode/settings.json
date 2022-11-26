@@ -1,4 +1,9 @@
 {
-	"python.linting.flake8Enabled": true,
-	"editor.insertSpaces": false
+    "python.linting.flake8Enabled": true,
+    "python.linting.enabled": true,
+    "editor.insertSpaces": false,
+    "editor.formatOnSave": false,
+    "editor.formatOnPaste": false,
+    "editor.formatOnType": false,
+    "python.formatting.provider": "none"
 }
