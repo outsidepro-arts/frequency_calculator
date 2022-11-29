@@ -1,5 +1,6 @@
-import decimal
 from collections import namedtuple
+
+import math
 import re
 
 import wx
@@ -266,19 +267,19 @@ class FreqToChanTab(wx.Panel):
 		resultSizer.Add(self.resultField, wx.EXPAND)
 
 	def process_static_band(
-		self, band: StaticBand, freqProvided: decimal.Decimal
+		self, band: StaticBand, freqProvided: float
 	) -> bool:
 		if not (band.startRange <= freqProvided <= band.endRange):
 			return False
 		lastChannel: FrequencyObject | None = None
-		prevDifference: decimal.Decimal | None = None
+		prevDifference: float | None = None
 		for channel in band:
-			if freqProvided == channel.frequencyRaw:
+			if math.isclose(freqProvided, channel.frequencyRaw):
 				self.resultField.ChangeValue(channel.name)
 				return True
 			else:
 				currentDifference = abs(
-					freqProvided - decimal.Decimal(channel.frequencyRaw)
+					freqProvided - channel.frequencyRaw
 				)
 				if prevDifference is None or currentDifference <= prevDifference:
 					prevDifference = currentDifference
@@ -288,21 +289,21 @@ class FreqToChanTab(wx.Panel):
 		)
 		return True
 
-	def process_normal_band(self, band: Band, freqProvided: decimal.Decimal) -> bool:
+	def process_normal_band(self, band: Band, freqProvided: float) -> bool:
 		if (
 			(band.startRange - band.freqStep)
 			<= freqProvided
 			<= band[len(band) + 1].frequencyRaw
 		):
 			preChannel = (
-				(freqProvided - decimal.Decimal(band.startRange))
-				/ decimal.Decimal(band.freqStep)
+				(freqProvided - band.startRange)
+				/ band.freqStep
 			) + 1
 			if round(preChannel) < 1:
 				preChannel = 0.9
 			elif round(preChannel) > len(band):
 				preChannel = len(band) + 0.1
-			if int(preChannel) == preChannel:
+			if math.isclose(int(preChannel), preChannel):
 				self.resultField.ChangeValue(band[round(preChannel) - 1].name)
 			else:
 				self.resultField.ChangeValue(
@@ -313,13 +314,11 @@ class FreqToChanTab(wx.Panel):
 
 	def onFrequencyProvided(self, event):
 		freqProvided = event.GetEventObject().GetValue()
-		decimal.getcontext().prec = 6
 		if re.search(r"\D", freqProvided):
 			freqProvided = re.sub(r"^(\d+)\D|\W|\s(\d+)", r"\1.\2", freqProvided)
 		try:
-			# We have to use this intermediate float conversion to avoid mistakes in Decimal with float comparison later
-			freqProvided = decimal.Decimal(float(freqProvided))
-		except (decimal.InvalidOperation, ValueError):
+			freqProvided = float(freqProvided)
+		except (ValueError):
 			self.resultField.ChangeValue("Введите число")
 			return True
 		result = False
@@ -343,9 +342,14 @@ class AppWindow(wx.Frame):
 			pos=(wx.Center, wx.Center),
 			size=(640, 480),
 		)
-		self.tabs = wx.Notebook(self)
+		self.panel = wx.Panel(self)
+		self.tabs = wx.Notebook(self.panel)
 		self.chanToFreq = ChanToFreqTab(self.tabs)
 		self.freqToChanTab = FreqToChanTab(self.tabs)
+		self.sizer = wx.BoxSizer(wx.VERTICAL)
+		self.sizer.Add(self.tabs, wx.EXPAND)
+		self.panel.SetSizer(self.sizer)
+		self.Layout()
 		self.Bind(wx.EVT_CHAR_HOOK, self.keyProcess)
 
 	def keyProcess(self, event: wx.KeyEvent):
