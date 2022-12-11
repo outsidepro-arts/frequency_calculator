@@ -303,7 +303,7 @@ class FreqToChanTab(wx.Panel):
 				preChannel = 0.9
 			elif round(preChannel) > len(band):
 				preChannel = len(band) + 0.1
-			if math.isclose(int(preChannel), preChannel):
+			if math.isclose(round(preChannel), preChannel):
 				self.resultField.ChangeValue(band[round(preChannel) - 1].name)
 			else:
 				self.resultField.ChangeValue(
