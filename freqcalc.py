@@ -1,11 +1,11 @@
 from collections import namedtuple
 
+import json
 import math
+import pathlib
 import re
 
 import wx
-
-import freqlists
 
 FrequencyObject = namedtuple("FrequencyObject", ["name", "frequency", "frequencyRaw"])
 
@@ -79,6 +79,16 @@ class StaticBand(Band):
 			frequencyRaw=result,
 		)
 
+class BandFromFile(StaticBand):
+	def __init__(self, filename: pathlib.Path):
+		with open(filename) as f:
+			data = json.load(f)
+		name = (data["name"], data["tip"])
+		freqFormat = data["frequencyFormat"]
+		frequencies = data["channels"]
+		super().__init__(name, freqFormat, frequencies)
+
+
 
 bandsList = [
 	Band(
@@ -103,13 +113,11 @@ bandsList = [
 		freqFormat="%.4f",
 		bandDivider=15,
 	),
-	StaticBand(
-		bandName=("CB eu a", "CB European standard A"),
-		freqFormat="%.3f",
-		frequencies=freqlists.CB_EU_A,
-	),
 ]
 
+# We have to iter the manual_tables sub-folder placed into the script's folder
+for file in pathlib.Path(__file__).parent.glob("manual_tables/*.json"):
+	bandsList.append(BandFromFile(file))
 
 class ChanToFreqTab(wx.Panel):
 	def __init__(self, parent):
