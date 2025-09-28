@@ -116,7 +116,7 @@ bandsList = [
 ]
 
 # We have to iter the manual_tables sub-folder placed into the script's folder
-for file in pathlib.Path(__file__).parent.glob("manual_tables/*.json"):
+for file in pathlib.Path(__file__).parent.glob("custom_bands/*.json"):
 	bandsList.append(BandFromFile(file))
 
 class ChanToFreqTab(wx.Panel):
